@@ -23,9 +23,9 @@ def generate_embeddings(text_list):
 # Query Mistral LLM
 def chat_with_mistral(context, user_query):
     messages = [
-        ChatMessage(role="user", content=f"Context: {context}\nQuestion: {user_query}\nAnswer:")
+        {"role": "user", "content": f"Context: {context}\nQuestion: {user_query}\nAnswer:"}
     ]
-    completion = mistral_client.chat.create(
+    completion = mistral_client.chat(
         model="mistral-large-latest",
         messages=messages
     )
