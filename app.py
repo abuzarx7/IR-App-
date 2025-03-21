@@ -13,11 +13,11 @@ mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
 
 # Get text embeddings
 def generate_embeddings(text_list):
-    response = mistral_client.embeddings.create(
+    embeddings_response = mistral_client.embeddings(
         model="mistral-embed",
-        inputs=text_list
+        input=text_list
     )
-    return np.array([emb.embedding for emb in response.data])
+    return np.array([embedding.embedding for embedding in embeddings_response.data])
 
 # Query Mistral LLM
 def chat_with_mistral(context, user_query):
