@@ -2,7 +2,6 @@ import streamlit as st
 import faiss
 import numpy as np
 from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage as UserMessage
 from bs4 import BeautifulSoup
 import requests
 
