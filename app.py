@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import requests
 
 # Your Mistral API key
-MISTRAL_API_KEY = "your-api-key"
+MISTRAL_API_KEY = "WXKRllxKbp3htHMI9bogmeOTP0VV09ce"
 
 # Initialize Mistral Client
 mistral_client = MistralClient(api_key=MISTRAL_API_KEY)
