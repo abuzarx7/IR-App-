@@ -28,7 +28,7 @@ tfidf_matrix = vectorizer.fit_transform(corpus_sentences)
 doc_ids = list(document_store.keys())
 
 # Streamlit UI
-st.title("📚 Document Search with Previews")
+st.title("📚 IR App Search Engine")
 st.write("Enter a search query to find relevant documents from the Reuters corpus:")
 
 query = st.text_input("Enter your search query:", "")
@@ -48,8 +48,8 @@ if query:
                 "preview": preview
             })
     
-    # Sort results by similarity score
-    results = sorted(results, key=lambda x: x["score"], reverse=True)
+    # Sort results by similarity score and keep top 5 only
+    results = sorted(results, key=lambda x: x["score"], reverse=True)[:5]
 
     # Display results
     for result in results:
