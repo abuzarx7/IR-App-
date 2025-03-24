@@ -1,6 +1,6 @@
 streamlit
-faiss-cpu
-mistralai
-beautifulsoup4
-requests
-numpy
+nltk
+gensim
+scikit-learn
+matplotlib
+pandas

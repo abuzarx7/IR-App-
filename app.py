@@ -1,87 +1,71 @@
 import streamlit as st
-import faiss
+import nltk
+from nltk.corpus import reuters
+from nltk.tokenize import word_tokenize
+from gensim.models import Word2Vec
+from sklearn.manifold import TSNE
+from sklearn.metrics.pairwise import cosine_similarity
+import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
-from mistralai import Mistral, UserMessage
-from bs4 import BeautifulSoup
-import requests
 
-# Mistral API key
-MISTRAL_API_KEY = "WXKRllxKbp3htHMI9bogmeOTP0VV09ce"
+# Download necessary NLTK resources
+nltk.download('reuters')
+nltk.download('punkt')
+nltk.download('stopwords')
 
-# Initialize Mistral Client
-client = Mistral(api_key=MISTRAL_API_KEY)
+st.set_page_config(page_title="Word2Vec IR App", layout="wide")
 
-# Function to extract text from policy URLs
-def extract_policy_text(policy_url):
-    html = requests.get(policy_url).content
-    soup = BeautifulSoup(html, 'html.parser')
-    return soup.get_text()
+st.title("📚 Information Retrieval using Word2Vec on Reuters Corpus")
+st.markdown("""
+This app uses **NLTK Reuters Corpus** to train a **Word2Vec** model and visualize the word embeddings using **t-SNE**.
+""")
 
-# Generate text embeddings
-def create_embeddings(text_list):
-    response = client.embeddings.create(model="mistral-embed", inputs=text_list)
-    return np.array([r.embedding for r in response.data])
+@st.cache_data
+def preprocess_corpus():
+    corpus_sentences = []
+    for fileid in reuters.fileids():
+        raw_text = reuters.raw(fileid)
+        tokenized = [word for word in word_tokenize(raw_text) if word.isalnum()]
+        corpus_sentences.append(tokenized)
+    return corpus_sentences
 
-# FAISS index creation
-def setup_faiss_index(policy_text):
-    chunks = [policy_text[i:i+500] for i in range(0, len(policy_text), 500)]
-    embeddings = create_embeddings(chunks)
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
-    return index, chunks
+corpus_sentences = preprocess_corpus()
+st.success(f"Loaded {len(corpus_sentences)} documents from Reuters corpus.")
 
-# Retrieve chunks based on user query
-def fetch_relevant_chunks(query, index, chunks, num_chunks=2):
-    query_embedding = create_embeddings([query])
-    _, indices = index.search(query_embedding, num_chunks)
-    return [chunks[idx] for idx in indices[0]]
+@st.cache_resource
+def train_model(sentences):
+    model = Word2Vec(sentences=sentences, vector_size=100, window=5, min_count=5, workers=4)
+    return model
 
-# Chat with Mistral AI
-def ask_mistral(context_chunks, query):
-    context = "\n".join(context_chunks)
-    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer:"
-    response = client.chat.complete(
-        model="mistral-large-latest",
-        messages=[UserMessage(content=prompt)]
-    )
-    return response.choices[0].message.content
+model = train_model(corpus_sentences)
+vocab = list(model.wv.index_to_key)
+st.info(f"Trained Word2Vec model with a vocabulary size of {len(vocab)} words.")
 
-# Streamlit User Interface
-st.title("📖 UDST Interactive Policy Assistant 🤖")
+# Word similarity section
+st.header("🔍 Word Similarity")
+word = st.text_input("Enter a word from the vocabulary:", "oil")
+if word in model.wv:
+    similar_words = model.wv.most_similar(word, topn=10)
+    st.write("Top similar words:")
+    st.dataframe(pd.DataFrame(similar_words, columns=["Word", "Similarity"]))
+else:
+    st.warning("Word not in vocabulary!")
 
-# UDST policies
-udst_policies = {
-    "Student Conduct": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/student-conduct-policy",
-    "Academic Schedule": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/academic-schedule-policy",
-    "Attendance": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/student-attendance-policy",
-    "Appeals": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/student-appeals-policy",
-    "Graduation": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduation-policy",
-    "Academic Standing": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/academic-standing-policy",
-    "Transfer": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/transfer-policy",
-    "Admissions": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/admissions-policy",
-    "Final Grade": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/final-grade-policy",
-    "Registration": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
-}
+# t-SNE visualization
+st.header("🧠 Word Embedding Visualization (t-SNE)")
 
-selected_policy = st.selectbox("Choose Policy:", list(udst_policies.keys()))
+num_words = st.slider("Number of words to visualize:", 100, 500, 200)
+selected_words = vocab[:num_words]
+vectors = np.array([model.wv[word] for word in selected_words])
 
-# Load policy button
-if st.button("Load Selected Policy"):
-    with st.spinner('Preparing policy content...'):
-        policy_text = extract_policy_text(udst_policies[selected_policy])
-        index, policy_chunks = setup_faiss_index(policy_text)
-        st.session_state['faiss_index'] = index
-        st.session_state['policy_chunks'] = policy_chunks
-    st.success("Policy loaded successfully!")
+tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+reduced_vectors = tsne.fit_transform(vectors)
 
-# User query input
-user_query = st.text_input("Enter your question:")
+fig, ax = plt.subplots(figsize=(12, 8))
+ax.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1])
 
-# Fetch answer button
-if st.button("Get Policy Answer"):
-    if 'faiss_index' in st.session_state:
-        relevant_context = fetch_relevant_chunks(user_query, st.session_state['faiss_index'], st.session_state['policy_chunks'])
-        answer = ask_mistral(relevant_context, user_query)
-        st.text_area("Answer:", value=answer, height=220)
-    else:
-        st.warning("Please load a policy first!")
+for i, word in enumerate(selected_words):
+    ax.annotate(word, (reduced_vectors[i, 0], reduced_vectors[i, 1]), fontsize=8)
+
+st.pyplot(fig)
