@@ -10,18 +10,20 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-# Setup NLTK data download directory
+# Set up local download path for NLTK resources
 nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
 os.makedirs(nltk_data_dir, exist_ok=True)
 nltk.data.path.append(nltk_data_dir)
 
-# Download necessary resources
-nltk.download('reuters', download_dir=nltk_data_dir)
-nltk.download('punkt', download_dir=nltk_data_dir)
-nltk.download('stopwords', download_dir=nltk_data_dir)
+# Download required NLTK resources explicitly
+for resource in ["reuters", "punkt", "stopwords"]:
+    try:
+        nltk.data.find(f"corpora/{resource}" if resource != "punkt" else "tokenizers/punkt")
+    except LookupError:
+        nltk.download(resource, download_dir=nltk_data_dir, quiet=True)
 
-# Streamlit page config
 st.set_page_config(page_title="Word2Vec IR App", layout="wide")
+
 st.title("📚 Information Retrieval using Word2Vec on Reuters Corpus")
 st.markdown("""
 This app uses **NLTK Reuters Corpus** to train a **Word2Vec** model and visualize the word embeddings using **t-SNE**.
