@@ -1,94 +1,108 @@
 import streamlit as st
-import nltk
-from nltk.corpus import reuters
-from gensim.models import Word2Vec
-from nltk.tokenize import word_tokenize
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-import numpy as np
-
-# NLTK Resource Setup
-def setup_nltk_resources():
-    nltk.download('reuters')  # Ensure Reuters corpus is downloaded
-    try:
-        # Check if the Reuters corpus is accessible
-        nltk.data.find('corpora/reuters.zip')
-    except LookupError:
-        st.error("Reuters corpus is not found, please check the download and file path.")
-
-setup_nltk_resources()
-
-# Load and prepare the corpus
-corpus_sentences = []
-if hasattr(reuters, 'fileids'):
-    for fileid in reuters.fileids():
-        raw_text = reuters.raw(fileid)
-        tokenized_sentence = [word for word in nltk.word_tokenize(raw_text) if word.isalnum()]
-        corpus_sentences.append(tokenized_sentence)
-
-# Model training
-model = Word2Vec(sentences=corpus_sentences, vector_size=100, window=5, min_count=5, workers=4)
-
-# t-SNE Visualization
-def tsne_plot(model):
-    labels = []
-    tokens = []
-
-    for word in model.wv.index_to_key[:200]:  # Limit to top 200 words for better visualization
-        tokens.append(model.wv[word])
-        labels.append(word)
-    
-    tsne_model = TSNE(perplexity=40, n_components=2, init='pca', n_iter=2500, random_state=23)
-    new_values = tsne_model.fit_transform(tokens)
-
-    x = []
-    y = []
-    for value in new_values:
-        x.append(value[0])
-        y.append(value[1])
-    
-    plt.figure(figsize=(10, 10)) 
-    for i in range(len(x)):
-        plt.scatter(x[i], y[i])
-        plt.annotate(labels[i],
-                     xy=(x[i], y[i]),
-                     xytext=(5, 2),
-                     textcoords='offset points',
-                     ha='right',
-                     va='bottom')
-    plt.show()
 
 # Define a dummy search function (replace with actual implementation)
 def search_function(query):
-    # Example mock search results updated
+    # Example mock search results
     results = [
-        {"id": "training/10576", "score": 0.8033, "preview": "Irwin Jacobs involved in major stock deal, according to sources."},
-        {"id": "training/13462", "score": 0.7407, "preview": "Trade battles continue as cocoa buffer stock struggles."},
-        {"id": "test/20039", "score": 0.7107, "preview": "BP set to launch new offshore oil project despite environmental concerns."},
+        {"id": "training/10576", "score": 0.8033, "preview": "Sample document preview 1..."},
+        {"id": "training/13462", "score": 0.7444, "preview": "Sample document preview 2..."},
     ]
     return results
 
-def display_search_results(results):
-    for result in results:
-        with st.container():
-            st.text(f"Document ID: {result['id']}")
-            st.text(f"Similarity Score: {result['score']:.4f}")
-            st.text(f"Document Preview: {result['preview']}")
-            st.markdown("---")  # Adds a horizontal line for separating entries
+import streamlit as st
+#!/usr/bin/env python
+# coding: utf-8
 
-st.title('Document Search App')
+# In[52]:
 
-query = st.text_input("Enter your search query:", "")
-if st.button("Search"):
-    if query:
-        results = search_function(query)
-        if results:
-            display_search_results(results)
-        else:
-            st.write("No results found.")
-    else:
-        st.warning("Please enter a search query.")
+import streamlit as st
 
-# Optionally display the t-SNE plot
-if st.button('Show t-SNE Plot'):
-    tsne_plot(model)
+import nltk
+from nltk.corpus import reuters, stopwords
+from gensim.models import Word2Vec
+from nltk.tokenize import word_tokenize
+from sklearn.metrics.pairwise import cosine_similarity
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+# In[4]:
+
+
+nltk.download('reuters')
+nltk.download('punkt')
+nltk.download('punkt_tab')
+nltk.download('stopwords')
+
+
+# In[7]:
+
+
+corpus_sentences = []
+for fileid in reuters.fileids():
+    raw_text = reuters.raw(fileid)
+    tokenized_sentence = [word for word in nltk.word_tokenize(raw_text) if word.isalnum() and word]
+    corpus_sentences.append(tokenized_sentence)
+st.write(f"Number of sentences in the Reuters corpus: {len(corpus_sentences)}")
+
+
+# In[9]:
+
+
+model = Word2Vec(sentences=corpus_sentences, vector_size=100, window=5, min_count=5, workers=4)
+# Print vocabulary size
+st.write(f"Vocabulary size: {len(model.wv.index_to_key)}")
+
+
+# In[11]:
+
+
+import numpy as np
+# Extract the learned word vectors and their corresponding words for visualization.
+words = list(model.wv.index_to_key)[:200]  # Limit to top 200 words for better visualization
+word_vectors = np.array([model.wv[word] for word in words])  # Convert to NumPy array for compatible 
+
+
+# In[13]:
+
+
+# Use t-SNE to project the high-dimensional word embeddings into a 2D space.
+tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+word_vectors_2d = tsne.fit_transform(word_vectors)
+
+
+# In[15]:
+
+
+# Plot the 2D t-SNE visualization of the word embeddings with their labels.
+def plot_embeddings(vectors, labels):
+    plt.figure(figsize=(16, 12))
+    for i, label in enumerate(labels):
+        x, y = vectors[i]
+        plt.scatter(x, y, color='blue')
+        plt.text(x + 0.1, y + 0.1, label, fontsize=9)
+if st.checkbox('Show visualization'):
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    # Ensure vectors[i] is defined before use
+    x, y = [1, 2, 3], [1, 2, 3]  # Replace with actual data
+    ax.scatter(x, y, color='blue')
+    ax.text(x[0] + 0.1, y[0] + 0.1, 'Sample', fontsize=9)
+    st.pyplot(fig)
+query = st.text_input('Enter your search query:', '')
+if query:
+    st.write(f'Searching for: {query}')
+    search_results = search_function(query)  # Replace with actual function
+    for result in search_results:
+        st.markdown(f'### 📌 {result["id"]}')
+        st.write(f'**Similarity Score:** {result["score"]:.4f}')
+        preview_text = result['preview'].strip() if result['preview'] else '⚠️ No preview available for this document.'
+        st.text_area('Document Excerpt:', preview_text, height=100, disabled=True)
+        st.write(f'📖 *Why this document?* This document contains terms relevant to **"{query}"**.')
+        st.markdown('---')
+        st.write(f'Document ID: {result["id"]}')
+        st.write(f'Similarity Score: {result["score"]}')
+        st.write(f'Document Preview: {result["preview"]}')
+        st.write('---')
