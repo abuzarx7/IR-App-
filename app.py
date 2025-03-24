@@ -5,11 +5,24 @@ from nltk.tokenize import word_tokenize
 from gensim.models import Word2Vec
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import os
+
+# Set a custom directory for NLTK data
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
+if not os.path.exists(nltk_data_dir):
+    os.makedirs(nltk_data_dir)
+
+# Add the custom directory to NLTK's data path
+nltk.data.path.append(nltk_data_dir)
 
 # Download required NLTK data
-nltk.download('reuters')
-nltk.download('punkt')
-nltk.download('stopwords')
+try:
+    nltk.download('reuters', download_dir=nltk_data_dir)
+    nltk.download('punkt', download_dir=nltk_data_dir)
+    nltk.download('stopwords', download_dir=nltk_data_dir)
+except Exception as e:
+    st.error(f"Error downloading NLTK data: {e}")
+    st.stop()
 
 # Preprocessing function
 def preprocess_text(text):
@@ -25,7 +38,7 @@ def get_average_embedding(tokens, model):
         return np.zeros(model.vector_size)
 
 # Compute document embeddings for the corpus
-@st.cache_data  # Cache the computation to avoid re-running on every interaction
+@st.cache_data
 def compute_document_embeddings(corpus_sentences, model):
     document_embeddings = []
     for sentence in corpus_sentences:
