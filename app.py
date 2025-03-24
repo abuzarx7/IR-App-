@@ -1,79 +1,87 @@
 import streamlit as st
-import os
 import nltk
-from nltk.corpus import reuters
+from nltk.corpus import reuters, stopwords
 from nltk.tokenize import word_tokenize
 from gensim.models import Word2Vec
-from sklearn.manifold import TSNE
-from sklearn.metrics.pairwise import cosine_similarity
-import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Set up local download path for NLTK resources
-nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
-os.makedirs(nltk_data_dir, exist_ok=True)
-nltk.data.path.append(nltk_data_dir)
+# Download required NLTK data
+nltk.download('reuters')
+nltk.download('punkt')
+nltk.download('stopwords')
 
-# Download required NLTK resources explicitly
-for resource in ["reuters", "punkt", "stopwords"]:
-    try:
-        nltk.data.find(f"corpora/{resource}" if resource != "punkt" else "tokenizers/punkt")
-    except LookupError:
-        nltk.download(resource, download_dir=nltk_data_dir, quiet=True)
+# Preprocessing function
+def preprocess_text(text):
+    stop_words = set(stopwords.words('english'))
+    return [word.lower() for word in word_tokenize(text) if word.isalnum() and word.lower() not in stop_words]
 
-st.set_page_config(page_title="Word2Vec IR App", layout="wide")
+# Get average embedding for a list of tokens
+def get_average_embedding(tokens, model):
+    vectors = [model.wv[token] for token in tokens if token in model.wv]
+    if vectors:
+        return np.mean(vectors, axis=0)
+    else:
+        return np.zeros(model.vector_size)
 
-st.title("📚 Information Retrieval using Word2Vec on Reuters Corpus")
-st.markdown("""
-This app uses **NLTK Reuters Corpus** to train a **Word2Vec** model and visualize the word embeddings using **t-SNE**.
-""")
+# Compute document embeddings for the corpus
+@st.cache_data  # Cache the computation to avoid re-running on every interaction
+def compute_document_embeddings(corpus_sentences, model):
+    document_embeddings = []
+    for sentence in corpus_sentences:
+        embedding = get_average_embedding(sentence, model)
+        document_embeddings.append(embedding)
+    return document_embeddings
 
+# Find top N documents based on query
+def find_top_n_documents(query, document_embeddings, corpus_sentences, model, N=5):
+    query_tokens = preprocess_text(query)
+    query_embedding = get_average_embedding(query_tokens, model)
+    similarities = cosine_similarity([query_embedding], document_embeddings)[0]
+    top_indices = np.argsort(similarities)[-N:][::-1]
+    return [(reuters.fileids()[idx], similarities[idx], corpus_sentences[idx][:10]) for idx in top_indices]
+
+# Load and preprocess the Reuters corpus
 @st.cache_data
-def preprocess_corpus():
+def load_corpus():
     corpus_sentences = []
     for fileid in reuters.fileids():
         raw_text = reuters.raw(fileid)
-        tokenized = [word for word in word_tokenize(raw_text) if word.isalnum()]
-        corpus_sentences.append(tokenized)
+        corpus_sentences.append(preprocess_text(raw_text))
     return corpus_sentences
 
-corpus_sentences = preprocess_corpus()
-st.success(f"Loaded {len(corpus_sentences)} documents from Reuters corpus.")
-
+# Train Word2Vec model
 @st.cache_resource
-def train_model(sentences):
-    model = Word2Vec(sentences=sentences, vector_size=100, window=5, min_count=5, workers=4)
+def train_word2vec(corpus_sentences):
+    model = Word2Vec(sentences=corpus_sentences, vector_size=100, window=5, min_count=5, workers=4)
     return model
 
-model = train_model(corpus_sentences)
-vocab = list(model.wv.index_to_key)
-st.info(f"Trained Word2Vec model with a vocabulary size of {len(vocab)} words.")
+# Main Streamlit app
+def main():
+    st.title("Information Retrieval with Word2Vec")
+    st.write("Enter a query to find the top relevant documents from the Reuters corpus.")
 
-# Word similarity section
-st.header("🔍 Word Similarity")
-word = st.text_input("Enter a word from the vocabulary:", "oil")
-if word in model.wv:
-    similar_words = model.wv.most_similar(word, topn=10)
-    st.write("Top similar words:")
-    st.dataframe(pd.DataFrame(similar_words, columns=["Word", "Similarity"]))
-else:
-    st.warning("Word not in vocabulary!")
+    # Load corpus and train model
+    with st.spinner("Loading corpus and training model..."):
+        corpus_sentences = load_corpus()
+        model = train_word2vec(corpus_sentences)
+        document_embeddings = compute_document_embeddings(corpus_sentences, model)
 
-# t-SNE visualization
-st.header("🧠 Word Embedding Visualization (t-SNE)")
+    # User input
+    query = st.text_input("Enter your query (e.g., 'stock market performance'):", "stock market performance")
+    N = st.slider("Number of top documents to retrieve:", 1, 10, 5)
 
-num_words = st.slider("Number of words to visualize:", 100, 500, 200)
-selected_words = vocab[:num_words]
-vectors = np.array([model.wv[word] for word in selected_words])
+    if st.button("Search"):
+        with st.spinner("Searching for relevant documents..."):
+            results = find_top_n_documents(query, document_embeddings, corpus_sentences, model, N)
+        
+        st.subheader(f"Top {N} Most Relevant Documents for Query: '{query}'")
+        for doc_id, similarity, preview in results:
+            preview_text = ' '.join(preview) + "..."
+            st.write(f"**Document ID**: {doc_id}")
+            st.write(f"**Similarity Score**: {similarity:.4f}")
+            st.write(f"**Preview**: {preview_text}")
+            st.write("---")
 
-tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-reduced_vectors = tsne.fit_transform(vectors)
-
-fig, ax = plt.subplots(figsize=(12, 8))
-ax.scatter(reduced_vectors[:, 0], reduced_vectors[:, 1])
-
-for i, word in enumerate(selected_words):
-    ax.annotate(word, (reduced_vectors[i, 0], reduced_vectors[i, 1]), fontsize=8)
-
-st.pyplot(fig)
+if __name__ == "__main__":
+    main()
