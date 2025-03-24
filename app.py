@@ -7,10 +7,16 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
 
-# NLTK Downloads
-nltk.download('reuters')
-nltk.download('punkt')
-nltk.download('stopwords')
+# NLTK Resource Setup
+def setup_nltk_resources():
+    resources = ['punkt', 'stopwords', 'reuters']
+    for resource in resources:
+        try:
+            nltk.data.find(f'tokenizers/{resource}')
+        except LookupError:
+            nltk.download(resource)
+
+setup_nltk_resources()
 
 # Load and prepare the corpus
 corpus_sentences = []
