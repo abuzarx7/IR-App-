@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import nltk
 from nltk.corpus import reuters
 from nltk.tokenize import word_tokenize
@@ -9,13 +10,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-# Download necessary NLTK resources
-nltk.download('reuters')
-nltk.download('punkt')
-nltk.download('stopwords')
+# Setup NLTK data download directory
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
 
+# Download necessary resources
+nltk.download('reuters', download_dir=nltk_data_dir)
+nltk.download('punkt', download_dir=nltk_data_dir)
+nltk.download('stopwords', download_dir=nltk_data_dir)
+
+# Streamlit page config
 st.set_page_config(page_title="Word2Vec IR App", layout="wide")
-
 st.title("📚 Information Retrieval using Word2Vec on Reuters Corpus")
 st.markdown("""
 This app uses **NLTK Reuters Corpus** to train a **Word2Vec** model and visualize the word embeddings using **t-SNE**.
